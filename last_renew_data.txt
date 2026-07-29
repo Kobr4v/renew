@@ -1,4 +1,4 @@
 Server ID: Unknown
 Renew status: Failed
-Last renewal time: 2026-07-29 02:37:35
-Error: An error occurred: Unable to login to dashboard
+Last renewal time: 2026-07-29 10:40:38
+Error: Error: Unable to login to dashboard
