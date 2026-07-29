@@ -9,11 +9,13 @@ from dateutil import parser
 import os
 import requests
 import re
+import speech_recognition as sr
+from pydub import AudioSegment
+from io import BytesIO
 
 USERNAME = os.getenv('USERNAME', '')
 PASSWORD = os.getenv('PASSWORD', '')
 SESSION_COOKIE = os.getenv('PTERODACTYL_SESSION', '')
-CAPTCHA_API_KEY = os.getenv('CAPTCHA_API_KEY', '')
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
@@ -23,13 +25,24 @@ APP_URL = 'https://tickhosting.com'
 
 def setup_driver():
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
+    options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument('--disable-blink-features=AutomationControlled')
-    return webdriver.Chrome(options=options)
+    options.add_argument(f'--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36')
+    options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    options.add_experimental_option('useAutomationExtension', False)
+    driver = webdriver.Chrome(options=options)
+    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+        'source': '''
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+        '''
+    })
+    return driver
 
 
 def add_cookies(driver):
@@ -159,88 +172,84 @@ def login_to_dashboard(driver):
 
 
 def solve_recaptcha(driver):
-    if not CAPTCHA_API_KEY:
-        print("CAPTCHA_API_KEY not set, skipping captcha solve")
-        return False
-
+    print("Attempting free audio-based captcha solve...")
     try:
-        sitekey = None
+        iframes = driver.find_elements(By.CSS_SELECTOR, "iframe[src*='recaptcha']")
+        if not iframes:
+            print("No reCAPTCHA iframe found")
+            return False
+
+        driver.switch_to.frame(iframes[0])
+        time.sleep(1)
+
         try:
-            recaptcha_div = driver.find_element(By.CSS_SELECTOR, ".g-recaptcha")
-            sitekey = recaptcha_div.get_attribute("data-sitekey")
+            checkbox = driver.find_element(By.ID, "recaptcha-anchor")
+            checkbox.click()
+            print("Clicked reCAPTCHA checkbox")
+        except Exception:
+            print("Could not click checkbox in iframe")
+            driver.switch_to.default_content()
+            return False
+
+        time.sleep(2)
+
+        driver.switch_to.default_content()
+
+        try:
+            challenge = driver.find_element(By.CSS_SELECTOR, "iframe[src*='recaptcha/challenge']")
+            driver.switch_to.frame(challenge)
+            print("Challenge appeared, attempting audio solve...")
+        except Exception:
+            print("No challenge - checkbox passed")
+            return True
+
+        try:
+            audio_btn = driver.find_element(By.ID, "recaptcha-audio-button")
+            audio_btn.click()
+        except Exception:
+            audio_btn = driver.find_element(By.CSS_SELECTOR, "button#recaptcha-audio-button")
+            audio_btn.click()
+        print("Clicked audio challenge button")
+        time.sleep(3)
+
+        audio_el = driver.find_element(By.ID, "audio-source")
+        audio_url = audio_el.get_attribute("src")
+        print(f"Downloading audio from {audio_url}")
+
+        audio_resp = requests.get(audio_url, timeout=15)
+        mp3_data = BytesIO(audio_resp.content)
+
+        audio = AudioSegment.from_mp3(mp3_data)
+        wav_data = BytesIO()
+        audio.export(wav_data, format="wav")
+        wav_data.seek(0)
+
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(wav_data) as source:
+            audio_content = recognizer.record(source)
+
+        text = recognizer.recognize_google(audio_content)
+        print(f"Transcribed: '{text}'")
+
+        resp_input = driver.find_element(By.ID, "audio-response")
+        resp_input.clear()
+        resp_input.send_keys(text.lower())
+        time.sleep(1)
+
+        verify_btn = driver.find_element(By.ID, "recaptcha-verify-button")
+        verify_btn.click()
+        time.sleep(3)
+
+        driver.switch_to.default_content()
+        print("Audio captcha solved successfully")
+        return True
+
+    except Exception as e:
+        print(f"Audio captcha solver failed: {e}")
+        try:
+            driver.switch_to.default_content()
         except Exception:
             pass
-
-        if not sitekey:
-            try:
-                sitekey = driver.execute_script(
-                    "return ___grecaptcha_cfg && ___grecaptcha_cfg.clients && "
-                    "___grecaptcha_cfg.clients[0] && "
-                    "Object.values(___grecaptcha_cfg.clients[0])[0] && "
-                    "Object.values(___grecaptcha_cfg.clients[0])[0].sitekey"
-                )
-            except Exception:
-                pass
-
-        if not sitekey:
-            print("Could not find reCAPTCHA sitekey")
-            return False
-
-        page_url = driver.current_url
-        print(f"Found reCAPTCHA sitekey: {sitekey}")
-        print(f"Submitting to 2Captcha (page: {page_url})...")
-
-        submit_url = "https://2captcha.com/in.php"
-        submit_data = {
-            "key": CAPTCHA_API_KEY,
-            "method": "userrecaptcha",
-            "googlekey": sitekey,
-            "pageurl": page_url,
-            "json": 1,
-        }
-        resp = requests.post(submit_url, data=submit_data, timeout=30)
-        result = resp.json()
-
-        if result.get("status") != 1:
-            print(f"2Captcha submit failed: {result}")
-            return False
-
-        request_id = result["request"]
-        print(f"2Captcha request ID: {request_id}, waiting for solution...")
-
-        poll_url = "https://2captcha.com/res.php"
-        for attempt in range(60):
-            time.sleep(5)
-            poll_resp = requests.get(poll_url, params={
-                "key": CAPTCHA_API_KEY,
-                "action": "get",
-                "id": request_id,
-                "json": 1,
-            }, timeout=15)
-            poll_result = poll_resp.json()
-
-            if poll_result.get("status") == 1:
-                token = poll_result["request"]
-                print(f"reCAPTCHA solved, injecting token...")
-
-                driver.execute_script(f"""
-                    var textarea = document.getElementById('g-recaptcha-response');
-                    if (textarea) {{
-                        textarea.style.display = 'block';
-                        textarea.innerHTML = '{token}';
-                    }}
-                """)
-                time.sleep(1)
-                print("reCAPTCHA token injected")
-                return True
-            elif poll_result.get("request") != "CAPCHA_NOT_READY":
-                print(f"2Captcha error: {poll_result}")
-                return False
-
-        print("2Captcha timed out")
-        return False
-    except Exception as e:
-        print(f"reCAPTCHA solver error: {e}")
         return False
 
 
