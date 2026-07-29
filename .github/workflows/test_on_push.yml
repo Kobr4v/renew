@@ -34,6 +34,7 @@ jobs:
         EMAIL: ${{ secrets.EMAIL }}
         PASSWORD: ${{ secrets.PASSWORD }}
         PTERODACTYL_SESSION: ${{ secrets.PTERODACTYL_SESSION }}
+        CAPTCHA_API_KEY: ${{ secrets.CAPTCHA_API_KEY }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         TEST_MODE: 'true'
