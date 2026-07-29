@@ -10,7 +10,7 @@ import os
 import requests
 import re
 
-EMAIL = os.getenv('EMAIL', '')
+USERNAME = os.getenv('USERNAME', '')
 PASSWORD = os.getenv('PASSWORD', '')
 SESSION_COOKIE = os.getenv('PTERODACTYL_SESSION', '')
 CAPTCHA_API_KEY = os.getenv('CAPTCHA_API_KEY', '')
@@ -65,8 +65,8 @@ def login_to_dashboard(driver):
         print(f"Cookie login error: {e}")
 
     try:
-        if not EMAIL or not PASSWORD:
-            raise ValueError("EMAIL or PASSWORD not set")
+        if not USERNAME or not PASSWORD:
+            raise ValueError("USERNAME or PASSWORD not set")
 
         driver.get('https://tickhosting.com/auth/login')
         time.sleep(8)
@@ -133,7 +133,7 @@ def login_to_dashboard(driver):
             raise Exception("Could not find login button")
 
         email_input.clear()
-        email_input.send_keys(EMAIL)
+        email_input.send_keys(USERNAME)
         password_input.clear()
         password_input.send_keys(PASSWORD)
 

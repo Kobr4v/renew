@@ -45,7 +45,7 @@ jobs:
         
     - name: Run auto renew script
       env:
-        EMAIL: ${{ secrets.EMAIL }}
+        USERNAME: ${{ secrets.USERNAME }}
         PASSWORD: ${{ secrets.PASSWORD }}
         PTERODACTYL_SESSION: ${{ secrets.PTERODACTYL_SESSION }}
         CAPTCHA_API_KEY: ${{ secrets.CAPTCHA_API_KEY }}
