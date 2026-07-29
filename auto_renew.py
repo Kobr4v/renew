@@ -427,15 +427,23 @@ def run_tests():
 
     print(f"\n{content}")
 
+    all_pass = passed == total
+    verdict = "\U00002705 *All checks passed* \U0001F680" if all_pass else "\U0001F6A8 *Needs more development* \U0001F4A1"
+    commit = os.getenv('GITHUB_SHA', '')
+    commit_link = f"\n\U0001F517 `{commit[:7]}`" if commit else ""
+
     summary = (
-        f"\U0001F9EA *TickHosting Test Complete* \U0001F9EA\n\n"
+        f"{verdict}\n\n"
         f"{' '.join(['\U00002705' if ok else '\U0000274C' for _, ok in results])}\n\n"
     )
     for name, ok in results:
         icon = "\U00002705" if ok else "\U0000274C"
         summary += f"{icon}  `{name}`\n"
     summary += f"\n**{passed}/{total} tests passed**\n"
-    summary += f"\n\U0001F4C4 See `test_results.txt` for details"
+    if not all_pass:
+        failed_names = [name for name, ok in results if not ok]
+        summary += f"\n\U0001F6A7 Failing: {', '.join(f'`{n}`' for n in failed_names)}"
+    summary += commit_link
 
     send_telegram_message(summary)
 
