@@ -1,5 +1,3 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -16,7 +14,7 @@ import json
 import re
 import subprocess
 import sys
-from webdriver_manager.chrome import ChromeDriverManager
+import undetected_chromedriver as uc
 
 USERNAME = os.getenv('USERNAME', '')
 PASSWORD = os.getenv('PASSWORD', '')
@@ -133,20 +131,32 @@ def send_error_telegram(context, e):
     send_telegram_message(msg)
 
 
+def get_chrome_version():
+    try:
+        result = subprocess.run(['chrome', '--version'], capture_output=True, text=True, timeout=10)
+        log(f"Chrome: {result.stdout.strip()}")
+        m = re.search(r'(\d+)\.', result.stdout)
+        if m:
+            return int(m.group(1))
+    except Exception as e:
+        log(f"Cannot detect Chrome version: {e}", 'WARN')
+    return None
+
+
 def setup_driver():
-    log("Setting up Chrome driver...")
-    options = webdriver.ChromeOptions()
+    chrome_ver = get_chrome_version()
+    log(f"Detected Chrome major version: {chrome_ver}")
+
+    options = uc.ChromeOptions()
     options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--window-size=1920,1080')
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36')
-    options.add_experimental_option('excludeSwitches', ['enable-automation'])
-    options.add_experimental_option('useAutomationExtension', False)
 
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+    kwargs = {'options': options, 'use_subprocess': True}
+    if chrome_ver:
+        kwargs['version_main'] = chrome_ver
+    driver = uc.Chrome(**kwargs)
 
     driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
         'source': '''
