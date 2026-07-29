@@ -2,9 +2,12 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from datetime import datetime
 import time
+import random
 from dateutil import parser
 import os
 import requests
@@ -23,6 +26,27 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 APP_URL = 'https://tickhosting.com'
 
 
+def random_delay(min_s=0.3, max_s=1.5):
+    time.sleep(random.uniform(min_s, max_s))
+
+
+def human_type(element, text):
+    for char in text:
+        element.send_keys(char)
+        time.sleep(random.uniform(0.03, 0.12))
+
+
+def human_click(driver, element):
+    actions = ActionChains(driver)
+    actions.move_to_element_with_offset(element, random.randint(-8, 8), random.randint(-8, 8))
+    actions.pause(random.uniform(0.1, 0.3))
+    actions.move_to_element(element)
+    actions.pause(random.uniform(0.05, 0.2))
+    actions.click()
+    actions.pause(random.uniform(0.1, 0.3))
+    actions.perform()
+
+
 def setup_driver():
     options = webdriver.ChromeOptions()
     options.add_argument('--headless=new')
@@ -31,15 +55,50 @@ def setup_driver():
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument(f'--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36')
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36')
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     options.add_experimental_option('useAutomationExtension', False)
     driver = webdriver.Chrome(options=options)
+
     driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
         'source': '''
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [
+                    { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
+                    { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+                    { name: 'Native Client', filename: 'internal-nacl-plugin' }
+                ]
+            });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en', 'es'] });
+            Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+            Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+            Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+            Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
+            Object.defineProperty(navigator.connection || {}, 'rtt', { get: () => 100 });
+            Object.defineProperty(navigator.connection || {}, 'downlink', { get: () => 10 });
+            Object.defineProperty(navigator.connection || {}, 'effectiveType', { get: () => '4g' });
+            const origQuery = navigator.permissions.query.bind(navigator.permissions);
+            navigator.permissions.query = (p) => {
+                if (p.name === 'notifications' || p.name === 'clipboard-read') return Promise.resolve({ state: 'denied' });
+                return origQuery(p);
+            };
+            const origGetParam = WebGLRenderingContext.prototype.getParameter;
+            WebGLRenderingContext.prototype.getParameter = function(p) {
+                if (p === 37445) return 'Intel Inc.';
+                if (p === 37446) return 'Intel Iris OpenGL Engine';
+                return origGetParam(p);
+            };
+            const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
+            HTMLCanvasElement.prototype.toDataURL = function(type) {
+                const ctx = this.getContext('2d');
+                if (ctx) {
+                    const imgData = ctx.getImageData(0, 0, this.width, this.height);
+                    for (let i = 0; i < imgData.data.length; i += 4) { imgData.data[i] ^= 1; }
+                    ctx.putImageData(imgData, 0, 0);
+                }
+                return origToDataURL.apply(this, arguments);
+            };
         '''
     })
     return driver
@@ -145,14 +204,18 @@ def login_to_dashboard(driver):
         if not login_button:
             raise Exception("Could not find login button")
 
+        random_delay(0.5, 1)
         email_input.clear()
-        email_input.send_keys(USERNAME)
+        human_type(email_input, USERNAME)
+        random_delay(0.3, 0.8)
         password_input.clear()
-        password_input.send_keys(PASSWORD)
+        human_type(password_input, PASSWORD)
+        random_delay(0.5, 1)
 
         solve_recaptcha(driver)
+        random_delay(0.5, 1.5)
 
-        login_button.click()
+        human_click(driver, login_button)
         time.sleep(10)
 
         driver.get("https://tickhosting.com")
@@ -171,54 +234,56 @@ def login_to_dashboard(driver):
         return False
 
 
-def solve_recaptcha(driver):
-    print("Attempting free audio-based captcha solve...")
+def try_extract_grecaptcha_token(driver):
     try:
-        iframes = driver.find_elements(By.CSS_SELECTOR, "iframe[src*='recaptcha']")
-        if not iframes:
-            print("No reCAPTCHA iframe found")
-            return False
+        token = driver.execute_script("""
+            try {
+                var ta = document.getElementById('g-recaptcha-response');
+                if (ta && ta.value && ta.value.length > 50) return ta.value;
+                var clients = ___grecaptcha_cfg && ___grecaptcha_cfg.clients;
+                if (clients) {
+                    for (var cid in clients) {
+                        for (var wid in clients[cid]) {
+                            var w = clients[cid][wid];
+                            if (w && w.callback && typeof w.callback === 'function') {
+                                return 'callback_found';
+                            }
+                        }
+                    }
+                }
+            } catch(e) {}
+            return null;
+        """)
+        return token
+    except Exception:
+        return None
 
-        driver.switch_to.frame(iframes[0])
-        time.sleep(1)
 
-        try:
-            checkbox = driver.find_element(By.ID, "recaptcha-anchor")
-            checkbox.click()
-            print("Clicked reCAPTCHA checkbox")
-        except Exception:
-            print("Could not click checkbox in iframe")
-            driver.switch_to.default_content()
-            return False
+def solve_audio_challenge(driver):
+    try:
+        random_delay(1, 2)
+        audio_btn = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.ID, "recaptcha-audio-button"))
+        )
+        human_click(driver, audio_btn)
+        print("[AUDIO] Clicked audio challenge button")
+        random_delay(2, 3)
+    except Exception as e:
+        print(f"[AUDIO] No audio button: {e}")
+        return False
 
-        time.sleep(2)
-
-        driver.switch_to.default_content()
-
-        try:
-            challenge = driver.find_element(By.CSS_SELECTOR, "iframe[src*='recaptcha/challenge']")
-            driver.switch_to.frame(challenge)
-            print("Challenge appeared, attempting audio solve...")
-        except Exception:
-            print("No challenge - checkbox passed")
-            return True
-
-        try:
-            audio_btn = driver.find_element(By.ID, "recaptcha-audio-button")
-            audio_btn.click()
-        except Exception:
-            audio_btn = driver.find_element(By.CSS_SELECTOR, "button#recaptcha-audio-button")
-            audio_btn.click()
-        print("Clicked audio challenge button")
-        time.sleep(3)
-
-        audio_el = driver.find_element(By.ID, "audio-source")
+    try:
+        audio_el = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "audio-source"))
+        )
         audio_url = audio_el.get_attribute("src")
-        print(f"Downloading audio from {audio_url}")
+        print(f"[AUDIO] Downloading from {audio_url}")
 
-        audio_resp = requests.get(audio_url, timeout=15)
+        audio_resp = requests.get(audio_url, timeout=15, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+
         mp3_data = BytesIO(audio_resp.content)
-
         audio = AudioSegment.from_mp3(mp3_data)
         wav_data = BytesIO()
         audio.export(wav_data, format="wav")
@@ -226,31 +291,140 @@ def solve_recaptcha(driver):
 
         recognizer = sr.Recognizer()
         with sr.AudioFile(wav_data) as source:
-            audio_content = recognizer.record(source)
+            recorded = recognizer.record(source)
 
-        text = recognizer.recognize_google(audio_content)
-        print(f"Transcribed: '{text}'")
+        text = None
+        try:
+            text = recognizer.recognize_google(recorded)
+            print(f"[AUDIO] Google STT: '{text}'")
+        except sr.UnknownValueError:
+            print("[AUDIO] Google could not understand audio")
+            return False
+        except sr.RequestError:
+            print("[AUDIO] Google STT unavailable, trying Sphinx...")
+            try:
+                text = recognizer.recognize_sphinx(recorded)
+                print(f"[AUDIO] Sphinx: '{text}'")
+            except Exception:
+                print("[AUDIO] All STT backends failed")
+                return False
+    except Exception as e:
+        print(f"[AUDIO] Download/transcribe error: {e}")
+        return False
 
+    if not text:
+        return False
+
+    try:
         resp_input = driver.find_element(By.ID, "audio-response")
         resp_input.clear()
-        resp_input.send_keys(text.lower())
-        time.sleep(1)
+        random_delay(0.2, 0.5)
+        human_type(resp_input, text.lower())
+        random_delay(0.5, 1)
 
-        verify_btn = driver.find_element(By.ID, "recaptcha-verify-button")
-        verify_btn.click()
-        time.sleep(3)
+        verify_btn = WebDriverWait(driver, 3).until(
+            EC.element_to_be_clickable((By.ID, "recaptcha-verify-button"))
+        )
+        human_click(driver, verify_btn)
+        print("[AUDIO] Submitted answer")
+        random_delay(2, 3)
 
         driver.switch_to.default_content()
-        print("Audio captcha solved successfully")
-        return True
+        random_delay(1, 2)
 
+        token = driver.execute_script(
+            "return document.getElementById('g-recaptcha-response')?.value"
+        )
+        if token and len(token) > 50:
+            print("[AUDIO] Solved successfully")
+            return True
+
+        print("[AUDIO] Answer was wrong, retrying not available")
+        return False
     except Exception as e:
-        print(f"Audio captcha solver failed: {e}")
+        print(f"[AUDIO] Submit error: {e}")
+        driver.switch_to.default_content()
+        return False
+
+
+def solve_recaptcha(driver):
+    print("=== reCAPTCHA Solver ===")
+
+    try:
+        token = try_extract_grecaptcha_token(driver)
+        if token and len(token) > 50:
+            print("[SOLVER] Already solved, skipping")
+            return True
+    except Exception:
+        pass
+
+    iframes = driver.find_elements(By.CSS_SELECTOR, "iframe[src*='recaptcha/api2/anchor']")
+    if not iframes:
+        print("[SOLVER] No reCAPTCHA iframe found")
+        return False
+
+    driver.switch_to.frame(iframes[0])
+    random_delay(0.5, 1.5)
+
+    try:
+        checkbox = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "recaptcha-anchor"))
+        )
+        human_click(driver, checkbox)
+        print("[SOLVER] Checkbox clicked")
+    except Exception as e:
+        print(f"[SOLVER] Cannot click checkbox: {e}")
+        driver.switch_to.default_content()
+        return False
+
+    random_delay(1, 2)
+    driver.switch_to.default_content()
+
+    try:
+        token = driver.execute_script(
+            "return document.getElementById('g-recaptcha-response')?.value"
+        )
+        if token and len(token) > 50:
+            print("[SOLVER] Checkbox passed, no challenge needed")
+            return True
+    except Exception:
+        pass
+
+    random_delay(0.5, 1)
+
+    try:
+        challenge = driver.find_element(By.CSS_SELECTOR, "iframe[src*='recaptcha/api2/bframe']")
+        driver.switch_to.frame(challenge)
+        print("[SOLVER] Challenge detected, solving...")
+    except Exception:
         try:
-            driver.switch_to.default_content()
+            token = driver.execute_script(
+                "return document.getElementById('g-recaptcha-response')?.value"
+            )
+            if token and len(token) > 50:
+                print("[SOLVER] Already solved after checkbox")
+                return True
         except Exception:
             pass
-        return False
+        print("[SOLVER] No challenge - assuming passed")
+        return True
+
+    result = solve_audio_challenge(driver)
+    if result:
+        return True
+
+    print("[SOLVER] Audio solve failed, checking if token was injected anyway...")
+    try:
+        token = driver.execute_script(
+            "return document.getElementById('g-recaptcha-response')?.value"
+        )
+        if token and len(token) > 50:
+            print("[SOLVER] Token found after failed audio attempt")
+            return True
+    except Exception:
+        pass
+
+    return False
 
 
 def send_telegram_message(message, parse_mode='Markdown'):
