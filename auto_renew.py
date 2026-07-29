@@ -76,11 +76,11 @@ def login_to_dashboard(driver):
         print(f"Page source (first 3000 chars):\n{driver.page_source[:3000]}")
 
         email_selectors = [
+            (By.ID, 'username'),
+            (By.NAME, 'username'),
             (By.NAME, 'email'),
             (By.ID, 'email'),
-            (By.XPATH, "//input[@type='email']"),
-            (By.CSS_SELECTOR, "input[type='email']"),
-            (By.NAME, 'username'),
+            (By.CSS_SELECTOR, "input[placeholder*='email' i]"),
         ]
         password_selectors = [
             (By.NAME, 'password'),
@@ -89,8 +89,10 @@ def login_to_dashboard(driver):
             (By.CSS_SELECTOR, "input[type='password']"),
         ]
         button_selectors = [
+            (By.ID, 'btn-text'),
             (By.XPATH, "//button[@type='submit']"),
-            (By.XPATH, "//button[contains(text(), 'Login') or contains(text(), 'Sign in')]"),
+            (By.XPATH, "//button[contains(@class, 'submit-btn')]"),
+            (By.XPATH, "//button[contains(text(), 'Sign In') or contains(text(), 'Login')]"),
             (By.CSS_SELECTOR, "button[type='submit']"),
         ]
 
