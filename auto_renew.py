@@ -1,3 +1,5 @@
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -14,7 +16,7 @@ import json
 import re
 import subprocess
 import sys
-import undetected_chromedriver as uc
+from webdriver_manager.chrome import ChromeDriverManager
 
 USERNAME = os.getenv('USERNAME', '')
 PASSWORD = os.getenv('PASSWORD', '')
@@ -131,41 +133,20 @@ def send_error_telegram(context, e):
     send_telegram_message(msg)
 
 
-def get_chrome_version():
-    candidates = [
-        ['chrome', '--version'],
-        ['google-chrome', '--version'],
-        ['google-chrome-stable', '--version'],
-        ['reg', 'query', 'HKCU\\Software\\Google\\Chrome\\BLBeacon', '/v', 'version'],
-    ]
-    for cmd in candidates:
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            m = re.search(r'(\d+)\.', result.stdout)
-            if m:
-                ver = int(m.group(1))
-                log(f"Chrome version {ver} (via {cmd[0]})")
-                return ver
-        except Exception:
-            continue
-    log("Could not detect Chrome version", 'WARN')
-    return None
-
-
 def setup_driver():
-    chrome_ver = get_chrome_version()
-    log(f"Detected Chrome major version: {chrome_ver}")
-
-    options = uc.ChromeOptions()
+    log("Setting up Chrome driver...")
+    options = webdriver.ChromeOptions()
     options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--window-size=1920,1080')
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36')
+    options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    options.add_experimental_option('useAutomationExtension', False)
 
-    kwargs = {'options': options, 'use_subprocess': True}
-    if chrome_ver:
-        kwargs['version_main'] = chrome_ver
-    driver = uc.Chrome(**kwargs)
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
 
     driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
         'source': '''
