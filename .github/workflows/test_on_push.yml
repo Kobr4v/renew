@@ -23,6 +23,10 @@ jobs:
     - name: Install Chrome
       uses: browser-actions/setup-chrome@latest
 
+    - name: Clear old ChromeDriver
+      run: |
+        if (Test-Path "C:\SeleniumWebDrivers\ChromeDriver\chromedriver.exe") { Remove-Item "C:\SeleniumWebDrivers\ChromeDriver\chromedriver.exe" -Force }
+
     - name: Install ffmpeg
       run: choco install ffmpeg -y
 

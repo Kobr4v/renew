@@ -132,14 +132,23 @@ def send_error_telegram(context, e):
 
 
 def get_chrome_version():
-    try:
-        result = subprocess.run(['chrome', '--version'], capture_output=True, text=True, timeout=10)
-        log(f"Chrome: {result.stdout.strip()}")
-        m = re.search(r'(\d+)\.', result.stdout)
-        if m:
-            return int(m.group(1))
-    except Exception as e:
-        log(f"Cannot detect Chrome version: {e}", 'WARN')
+    candidates = [
+        ['chrome', '--version'],
+        ['google-chrome', '--version'],
+        ['google-chrome-stable', '--version'],
+        ['reg', 'query', 'HKCU\\Software\\Google\\Chrome\\BLBeacon', '/v', 'version'],
+    ]
+    for cmd in candidates:
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            m = re.search(r'(\d+)\.', result.stdout)
+            if m:
+                ver = int(m.group(1))
+                log(f"Chrome version {ver} (via {cmd[0]})")
+                return ver
+        except Exception:
+            continue
+    log("Could not detect Chrome version", 'WARN')
     return None
 
 
