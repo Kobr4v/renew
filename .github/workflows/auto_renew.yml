@@ -3,7 +3,13 @@ name: Auto Renew Tickhosting
 on:
   schedule:
     - cron: '0 */4 * * *'  # Every 4 hours
-  workflow_dispatch: 
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Run in test mode (test login + Telegram, no renewal)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write 
@@ -44,6 +50,7 @@ jobs:
         PTERODACTYL_SESSION: ${{ secrets.PTERODACTYL_SESSION }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
       run: python auto_renew.py
 
     - name: Commit and push if changed

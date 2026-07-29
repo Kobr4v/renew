@@ -313,5 +313,80 @@ def main():
                 print(f"Error closing browser: {e}")
 
 
+def run_tests():
+    results = []
+    failed = False
+
+    print("=== TEST MODE ===")
+
+    results.append(("Telegram notification", False))
+    tg_ok = send_telegram_message(
+        "\U0001F9EA *TickHosting Test Results* \U0001F9EA\n\n"
+        "\U0001F504 Running diagnostic tests...\n"
+        "Checking login and configuration..."
+    )
+    if tg_ok:
+        results[-1] = ("Telegram notification", True)
+        print("  [PASS] Telegram message sent")
+    else:
+        results[-1] = ("Telegram notification", False)
+        print("  [FAIL] Telegram not configured or send failed")
+
+    print("\n--- Testing login ---")
+    driver = None
+    login_ok = False
+    try:
+        driver = setup_driver()
+        driver.set_page_load_timeout(30)
+        driver.get("https://tickhosting.com")
+        time.sleep(5)
+        login_ok = login_to_dashboard(driver)
+    except Exception as e:
+        print(f"  [FAIL] Login threw exception: {e}")
+    finally:
+        if driver:
+            driver.quit()
+
+    results.append(("TickHosting login", login_ok))
+    if login_ok:
+        print("  [PASS] Login successful")
+    else:
+        print("  [FAIL] Login failed")
+
+    passed = sum(1 for _, ok in results if ok)
+    total = len(results)
+
+    content = (
+        f"Test Results ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n"
+        f"{'='*40}\n"
+    )
+    for name, ok in results:
+        status = "PASS" if ok else "FAIL"
+        content += f"  [{status}] {name}\n"
+    content += f"\n{passed}/{total} tests passed\n"
+
+    with open('test_results.txt', 'w') as f:
+        f.write(content)
+
+    print(f"\n{content}")
+
+    summary = (
+        f"\U0001F9EA *TickHosting Test Complete* \U0001F9EA\n\n"
+        f"{' '.join(['\U00002705' if ok else '\U0000274C' for _, ok in results])}\n\n"
+    )
+    for name, ok in results:
+        icon = "\U00002705" if ok else "\U0000274C"
+        summary += f"{icon}  `{name}`\n"
+    summary += f"\n**{passed}/{total} tests passed**\n"
+    summary += f"\n\U0001F4C4 See `test_results.txt` for details"
+
+    send_telegram_message(summary)
+
+    return 0 if passed == total else 1
+
+
 if __name__ == "__main__":
-    main()
+    if os.getenv('TEST_MODE', '').lower() in ('true', '1'):
+        exit(run_tests())
+    else:
+        main()
