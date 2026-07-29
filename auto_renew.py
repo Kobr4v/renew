@@ -11,8 +11,8 @@ import random
 from dateutil import parser
 import os
 import requests
+import json
 import re
-import speech_recognition as sr
 from pydub import AudioSegment
 from io import BytesIO
 
@@ -259,6 +259,32 @@ def try_extract_grecaptcha_token(driver):
         return None
 
 
+def transcribe_audio(wav_data):
+    try:
+        audio = AudioSegment.from_file(wav_data, format="wav")
+        audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
+        raw_data = audio.raw_data
+
+        url = "https://www.google.com/speech-api/v2/recognize"
+        params = {"output": "json", "lang": "en-US", "key": "AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw"}
+        headers = {"Content-Type": "audio/l16; rate=16000; channels=1"}
+        resp = requests.post(url, params=params, headers=headers, data=raw_data, timeout=15)
+
+        for line in resp.text.strip().split('\n'):
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+                if data.get('result'):
+                    return data['result'][0]['alternative'][0]['transcript']
+            except Exception:
+                continue
+        return None
+    except Exception as e:
+        print(f"[STT] Google API error: {e}")
+        return None
+
+
 def solve_audio_challenge(driver):
     try:
         random_delay(1, 2)
@@ -289,30 +315,16 @@ def solve_audio_challenge(driver):
         audio.export(wav_data, format="wav")
         wav_data.seek(0)
 
-        recognizer = sr.Recognizer()
-        with sr.AudioFile(wav_data) as source:
-            recorded = recognizer.record(source)
-
-        text = None
-        try:
-            text = recognizer.recognize_google(recorded)
-            print(f"[AUDIO] Google STT: '{text}'")
-        except sr.UnknownValueError:
-            print("[AUDIO] Google could not understand audio")
+        text = transcribe_audio(wav_data)
+        if not text:
+            print("[AUDIO] Transcription failed (all backends)")
+            driver.switch_to.default_content()
             return False
-        except sr.RequestError:
-            print("[AUDIO] Google STT unavailable, trying Sphinx...")
-            try:
-                text = recognizer.recognize_sphinx(recorded)
-                print(f"[AUDIO] Sphinx: '{text}'")
-            except Exception:
-                print("[AUDIO] All STT backends failed")
-                return False
+
+        print(f"[AUDIO] Transcribed: '{text}'")
     except Exception as e:
         print(f"[AUDIO] Download/transcribe error: {e}")
-        return False
-
-    if not text:
+        driver.switch_to.default_content()
         return False
 
     try:
@@ -339,7 +351,7 @@ def solve_audio_challenge(driver):
             print("[AUDIO] Solved successfully")
             return True
 
-        print("[AUDIO] Answer was wrong, retrying not available")
+        print("[AUDIO] Answer was wrong")
         return False
     except Exception as e:
         print(f"[AUDIO] Submit error: {e}")
