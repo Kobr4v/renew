@@ -13,8 +13,7 @@ import os
 import requests
 import json
 import re
-from pydub import AudioSegment
-from io import BytesIO
+import subprocess
 
 USERNAME = os.getenv('USERNAME', '')
 PASSWORD = os.getenv('PASSWORD', '')
@@ -259,11 +258,20 @@ def try_extract_grecaptcha_token(driver):
         return None
 
 
-def transcribe_audio(wav_data):
+def transcribe_audio(mp3_bytes):
     try:
-        audio = AudioSegment.from_file(wav_data, format="wav")
-        audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-        raw_data = audio.raw_data
+        proc = subprocess.run(
+            ['ffmpeg', '-i', 'pipe:0', '-f', 's16le', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', 'pipe:1'],
+            input=mp3_bytes, capture_output=True, timeout=30
+        )
+        if proc.returncode != 0:
+            print(f"[STT] ffmpeg error: {proc.stderr.decode(errors='ignore')[:200]}")
+            return None
+        raw_data = proc.stdout
+
+        if not raw_data or len(raw_data) < 100:
+            print(f"[STT] ffmpeg produced empty output ({len(raw_data or b'')} bytes)")
+            return None
 
         url = "https://www.google.com/speech-api/v2/recognize"
         params = {"output": "json", "lang": "en-US", "key": "AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw"}
@@ -280,8 +288,11 @@ def transcribe_audio(wav_data):
             except Exception:
                 continue
         return None
+    except subprocess.TimeoutExpired:
+        print("[STT] ffmpeg timed out")
+        return None
     except Exception as e:
-        print(f"[STT] Google API error: {e}")
+        print(f"[STT] Error: {e}")
         return None
 
 
@@ -309,13 +320,7 @@ def solve_audio_challenge(driver):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
 
-        mp3_data = BytesIO(audio_resp.content)
-        audio = AudioSegment.from_mp3(mp3_data)
-        wav_data = BytesIO()
-        audio.export(wav_data, format="wav")
-        wav_data.seek(0)
-
-        text = transcribe_audio(wav_data)
+        text = transcribe_audio(audio_resp.content)
         if not text:
             print("[AUDIO] Transcription failed (all backends)")
             driver.switch_to.default_content()
