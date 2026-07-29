@@ -70,9 +70,64 @@ def login_to_dashboard(driver):
         driver.get('https://tickhosting.com/auth/login')
         time.sleep(8)
 
-        email_input = driver.find_element(By.NAME, 'email')
-        password_input = driver.find_element(By.NAME, 'password')
-        login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+        driver.save_screenshot('debug_login_page.png')
+        print(f"Login page title: {driver.title}")
+        print(f"Login page URL: {driver.current_url}")
+        print(f"Page source (first 3000 chars):\n{driver.page_source[:3000]}")
+
+        email_selectors = [
+            (By.NAME, 'email'),
+            (By.ID, 'email'),
+            (By.XPATH, "//input[@type='email']"),
+            (By.CSS_SELECTOR, "input[type='email']"),
+            (By.NAME, 'username'),
+        ]
+        password_selectors = [
+            (By.NAME, 'password'),
+            (By.ID, 'password'),
+            (By.XPATH, "//input[@type='password']"),
+            (By.CSS_SELECTOR, "input[type='password']"),
+        ]
+        button_selectors = [
+            (By.XPATH, "//button[@type='submit']"),
+            (By.XPATH, "//button[contains(text(), 'Login') or contains(text(), 'Sign in')]"),
+            (By.CSS_SELECTOR, "button[type='submit']"),
+        ]
+
+        email_input = None
+        for by, val in email_selectors:
+            try:
+                email_input = driver.find_element(by, val)
+                if email_input:
+                    print(f"Found email input: {by}={val}")
+                    break
+            except Exception:
+                continue
+
+        password_input = None
+        for by, val in password_selectors:
+            try:
+                password_input = driver.find_element(by, val)
+                if password_input:
+                    print(f"Found password input: {by}={val}")
+                    break
+            except Exception:
+                continue
+
+        login_button = None
+        for by, val in button_selectors:
+            try:
+                login_button = driver.find_element(by, val)
+                if login_button:
+                    print(f"Found login button: {by}={val}")
+                    break
+            except Exception:
+                continue
+
+        if not email_input or not password_input:
+            raise Exception(f"Could not find login fields (email={'found' if email_input else 'missing'}, password={'found' if password_input else 'missing'})")
+        if not login_button:
+            raise Exception("Could not find login button")
 
         email_input.clear()
         email_input.send_keys(EMAIL)
@@ -91,6 +146,8 @@ def login_to_dashboard(driver):
         raise Exception("Login did not reach dashboard")
     except Exception as e:
         print(f"Login failed: {e}")
+        if driver:
+            driver.save_screenshot('debug_login_error.png')
         send_renew_error(f"Login failed: {e}")
         return False
 
