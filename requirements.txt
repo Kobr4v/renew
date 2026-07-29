@@ -1,3 +1,3 @@
 selenium==4.16.0
-undetected-chromedriver
+webdriver_manager==4.0.2
 python-dateutil==2.8.2
