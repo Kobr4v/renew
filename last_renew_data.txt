@@ -1,33 +1,4 @@
 Server ID: Unknown
 Renew status: Failed
-Last renewal time: 2026-08-19 08:43:53
-Error: Timeout: Message: timeout: Timed out receiving message from renderer: 300.000
-  (Session info: chrome=151.0.7922.109)
-Stacktrace:
-	chromedriver!GetHandleVerifier [0x1053353+fd93]
-	chromedriver!GetHandleVerifier [0x1053394+fdd4]
-	chromedriver!(No symbol) [0xe49220]
-	chromedriver!(No symbol) [0xe398c3]
-	chromedriver!(No symbol) [0xe395f5]
-	chromedriver!(No symbol) [0xe377c8]
-	chromedriver!(No symbol) [0xe38016]
-	chromedriver!(No symbol) [0xe44c0b]
-	chromedriver!(No symbol) [0xe5672e]
-	chromedriver!(No symbol) [0xe5c806]
-	chromedriver!(No symbol) [0xe3869c]
-	chromedriver!(No symbol) [0xe56487]
-	chromedriver!(No symbol) [0xed33e9]
-	chromedriver!(No symbol) [0xeb5616]
-	chromedriver!(No symbol) [0xe887e9]
-	chromedriver!(No symbol) [0xe895b4]
-	chromedriver!GetHandleVerifier [0x12ef51a+2abf5a]
-	chromedriver!GetHandleVerifier [0x12eaa21+2a7461]
-	chromedriver!GetHandleVerifier [0x107f374+3bdb4]
-	chromedriver!GetHandleVerifier [0x106e036+2aa76]
-	chromedriver!GetHandleVerifier [0x1074efd+3193d]
-	chromedriver!GetHandleVerifier [0x105c8a8+192e8]
-	chromedriver!GetHandleVerifier [0x105ca55+19495]
-	chromedriver!GetHandleVerifier [0x10453ff+1e3f]
-	KERNEL32!BaseThreadInitThunk [0x76575d49+19]
-	ntdll!RtlInitializeExceptionChain [0x7730d7bb+6b]
-	ntdll!RtlGetAppContainerNamedObjectPath [0x7730d741+231]
+Last renewal time: 2026-08-19 12:47:17
+Error: Error: Unable to login to dashboard
