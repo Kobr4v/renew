@@ -1,33 +1,4 @@
 Server ID: Unknown
 Renew status: Failed
-Last renewal time: 2026-09-18 22:28:27
-Error: Timeout: Message: timeout: Timed out receiving message from renderer: 300.000
-  (Session info: chrome=152.0.7977.83)
-Stacktrace:
-	chromedriver!GetHandleVerifier [0x571863+4fe3]
-	chromedriver!(No symbol) [0x4d1694]
-	chromedriver!(No symbol) [0x36bf90]
-	chromedriver!(No symbol) [0x35c663]
-	chromedriver!(No symbol) [0x35c395]
-	chromedriver!(No symbol) [0x35a568]
-	chromedriver!(No symbol) [0x35adb6]
-	chromedriver!(No symbol) [0x36797b]
-	chromedriver!(No symbol) [0x37942e]
-	chromedriver!(No symbol) [0x37f4f6]
-	chromedriver!(No symbol) [0x35b43c]
-	chromedriver!(No symbol) [0x379187]
-	chromedriver!(No symbol) [0x3f622f]
-	chromedriver!(No symbol) [0x3d8366]
-	chromedriver!(No symbol) [0x3ab4a9]
-	chromedriver!(No symbol) [0x3ac1b4]
-	chromedriver!GetHandleVerifier [0x8f6a2a+38a1aa]
-	chromedriver!GetHandleVerifier [0x91d702+3b0e82]
-	chromedriver!GetHandleVerifier [0x63f272+d29f2]
-	chromedriver!GetHandleVerifier [0x645263+d89e3]
-	chromedriver!(No symbol) [0x4dc54d]
-	chromedriver!(No symbol) [0x4d9358]
-	chromedriver!(No symbol) [0x4d9505]
-	chromedriver!(No symbol) [0x4c87a7]
-	KERNEL32!BaseThreadInitThunk [0x75285d49+19]
-	ntdll!RtlInitializeExceptionChain [0x777fd7bb+6b]
-	ntdll!RtlGetAppContainerNamedObjectPath [0x777fd741+231]
+Last renewal time: 2026-09-19 03:27:51
+Error: Error: Unable to login to dashboard
